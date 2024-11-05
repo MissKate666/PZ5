@@ -1,0 +1,101 @@
+import time
+import telebot
+import datetime
+import threading
+import random
+
+bot = telebot.TeleBot("7898062819:AAGl5eNzuOpX6tT3yyX7-eo_rmBJ6zHFyyU") # создание объекта бота и передача его в конструктор класса telebot.TeleBot()
+
+@bot.message_handler(commands=['start']) # добавление команды /start, которая будет выполняться при запуске бота
+def start_message(message):
+    bot.reply_to(message, 'Привет! Я самый лучший бот! Я буду отправлять тебе милые сообщения раз в час, играть и отправлять фактики!')
+    # Запускаем поток для отправки сообщений
+    threading.Thread(target=send_random_message, args=(message.chat.id,)).start()
+
+
+# Функция для отправки случайного сообщения
+def send_random_message(chat_id):
+    with open('Стих.txt', 'r', encoding='utf-8') as file:
+        messages = file.readlines()
+
+    while True:
+        time.sleep(2)  # Задержка
+        message = random.choice(messages).strip()  # Выбираем случайное сообщение
+        bot.send_message(chat_id, message)
+        return
+
+@bot.message_handler(commands=['fact'])
+def fact_message(message):
+    dict = {
+        1: "Вода на Земле может быть старше самой Солнечной системы! Исследования показывают, что от 30% до 50% воды в наших океанах возможно присутствовала в межзвездном пространстве еще до формирования Солнечной системы около 4,6 миллиарда лет назад.",
+        2 :"Горячая вода замерзает быстрее холодной! Это явление известно как эффект Мпемба. Под определенными условиями горячая вода может замерзать быстрее, чем холодная, хотя ученые до сих пор полностью не разгадали механизм этого процесса.",
+        3: "Больше воды в атмосфере, чем во всех реках мира! Объем водяного пара в атмосфере Земли в любой момент времени превышает объем воды во всех реках мира вместе взятых. Это подчеркивает важную роль атмосферы в гидрологическом цикле, перераспределяя воду по планете."}
+    random_fact = random.choice(dict)
+    bot.reply_to(message, f'Лови факт о воде:\n{random_fact}')
+
+@bot.message_handler(commands=['help'])
+def help_message(message):
+    myhelp= "/start - начало работы бота", "/help - помощь", " /fact - факты о воде", '/play - игра'
+    bot.reply_to(message, f'Я умею:\n {myhelp}')
+
+
+# Словарь для хранения информации об играх
+games = {}
+
+
+@bot.message_handler(commands=['play'])
+def start_game(message):
+    """Начало новой игры"""
+    secret_number = random.randint(1, 50)
+    games[message.chat.id] = {
+        "secret_number": secret_number,
+        "in_game": True
+    }
+    bot.send_message(
+        message.chat.id,
+        f"Игра началась! Я загадал число от 1 до 50: {secret_number}. "
+        "Отправляйте числа от 1 до 50 по порядку. Не забудьте заменять число, "
+        "если оно содержит загаданное число, на 'ОПЛЯ'! Для завершения игры напишите 'стоп'"
+    )
+
+
+@bot.message_handler(func=lambda message: message.chat.id in games and games[message.chat.id]["in_game"])
+def handle_number(message):
+    """Обработка чисел, отправленных пользователем"""
+    if message.text.lower() == 'стоп':
+        games[message.chat.id]["in_game"] = False
+        bot.send_message(message.chat.id, "Игра остановлена. Вы можете начать новую игру с командой /start.")
+        return
+
+    try:
+        user_input = message.text.strip()
+        if user_input == "ОПЛЯ":
+            bot.send_message(message.chat.id, f"Вы отправили ОПЛЯ. Продолжайте!")
+            return
+
+        user_number = int(user_input)
+    except ValueError:
+        bot.send_message(message.chat.id, "Пожалуйста, вводите только числа от 1 до 50 или 'ОПЛЯ'!")
+        return
+
+    if user_number < 1 or user_number > 50:
+        bot.send_message(message.chat.id, "Число должно быть от 1 до 50!")
+        return
+
+    secret_number = games[message.chat.id]["secret_number"]
+
+    # Проверка на наличие загаданного числа
+    if str(secret_number) in str(user_number):
+        bot.send_message(message.chat.id, "Вы забыли заменить число на 'ОПЛЯ'! Игра окончена.")
+        games.pop(message.chat.id)
+        return
+
+    bot.send_message(message.chat.id, "Число принято, продолжайте!")
+
+
+@bot.message_handler(func=lambda message: True)
+def unknown_message(message):
+    """Обработка любых других сообщений"""
+    bot.send_message(message.chat.id, "Я не понимаю вас. Начните новую игру с помощью команды /play.")
+
+bot.polling(none_stop=True)
